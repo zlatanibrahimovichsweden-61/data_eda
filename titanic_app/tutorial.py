@@ -1,7 +1,11 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from pathlib import Path
+import pandas as pd
 
+BASE_DIR = Path(__file__).parent
+df = pd.read_csv(BASE_DIR / "data" / "titanic.csv")
 ####################################################
 st.title("Mostafa Qora3a")
 st.write("hello from titanic app")
@@ -18,7 +22,7 @@ if submitted :
 
 
 
-df = pd.read_csv("data/titanic.csv")
+df = pd.read_csv(BASE_DIR / "data" / "titanic.csv")
 df.columns = df.columns.str.lower()
 df["class"] = df["pclass"].map({1: "First", 2: "Second", 3: "Third"})
 df["survival"] = df["survived"].map({0: "Died", 1: "Survived"})
