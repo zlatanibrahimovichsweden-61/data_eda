@@ -17,4 +17,4 @@ dependencies = [
 titanic-app = "titanic_app:main"
 
 [tool.uv]
-package=False
+package=false
