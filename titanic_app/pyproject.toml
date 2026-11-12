@@ -19,3 +19,5 @@ titanic-app = "titanic_app:main"
 
 
 
+[tool.uv]
+package=false
