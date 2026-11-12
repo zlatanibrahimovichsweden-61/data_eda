@@ -16,7 +16,8 @@ dependencies = [
 [project.scripts]
 titanic-app = "titanic_app:main"
 
-
+[tool.setuptools]
+packages = []
 
 
 [tool.uv]
