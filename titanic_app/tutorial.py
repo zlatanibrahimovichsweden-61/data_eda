@@ -1,68 +1,88 @@
 import streamlit as st
-import pandas as pd
-import plotly.express as px
-from pathlib import Path
-import pandas as pd
+from utills.data import load
+from utills.config import COLORS, ORDERS
+from utills.figures import rasma, rasma_pie, rasma_bar
 
-BASE_DIR = Path(__file__).parent
-df = pd.read_csv(BASE_DIR / "data" / "titanic.csv")
-####################################################
-st.title("Mostafa Qora3a")
-st.write("hello from titanic app")
-st.radio("selecta number",[1,2,3])
-checked=st.checkbox("doos 3lia ya3m")
-with st.form("search"):
-    name=st.text_input("namecontains",placeholder="e.g defense ministry")
-    classes=st.multiselect("class",[1,2,3],default=[1,2,3])
-    ages=st.slider("age",0,80,(0,80))
-    submitted=st.form_submit_button("search")
-if submitted :
-    st.write (f"you searched for {name} in class {classes} and ages {ages}")    
-    ###########################################################################
+# must be the first Streamlit call
+st.set_page_config(page_title="Titanic Explorer", page_icon="🚢", layout="wide")
 
+df = load()
 
+# ---------------------------------------------------------------- header
+st.title("🚢 Titanic Explorer")
+st.caption("Who was on board, and who survived? Use the filters in the sidebar to slice the data.")
 
-df = pd.read_csv(BASE_DIR / "data" / "titanic.csv")
-df.columns = df.columns.str.lower()
-df["class"] = df["pclass"].map({1: "First", 2: "Second", 3: "Third"})
-df["survival"] = df["survived"].map({0: "Died", 1: "Survived"})
-df["port"] = df["embarked"].map({"C": "Cherbourg", "Q": "Queenstown", "S": "Southampton"})
-df["family_size"] = df["sibsp"] + df["parch"] + 1
-df["title"] = df["name"].str.extract(r",\s*([^\.]+)\.", expand=False)
-df["age_group"] = pd.cut(df["age"], [0, 12, 18, 35, 60, 80],
-                         labels=["child", "teen", "young adult", "adult", "senior"])
+# ---------------------------------------------------------------- sidebar filters
+with st.sidebar:
+    st.header("Filters")
+    sel_classes = st.multiselect("Class", ORDERS["class"], default=ORDERS["class"], key="sb_class")
+    sel_gender = st.radio("Gender", ["All", "male", "female"], horizontal=True, key="sb_gender")
+    sel_ages = st.slider("Age", 0, 80, (0, 80), key="sb_age")
+    show_unknown_age = st.checkbox("Include unknown age", value=True, key="sb_unknown_age")
 
-ORDERS = {"class": ["First", "Second", "Third"], "survival": ["Died", "Survived"],
-          "age_group": ["child", "teen", "young adult", "adult", "senior"]}
-COLORS = {"Died": "#D95D4A", "Survived": "#0F766E"}
+data = df[df["class"].isin(sel_classes)]
+if sel_gender != "All":
+    data = data[data["sex"] == sel_gender]
+age_ok = data["age"].between(*sel_ages)
+if show_unknown_age:
+    age_ok = age_ok | data["age"].isna()
+data = data[age_ok]
 
+with st.sidebar:
+    st.divider()
+    st.caption(f"Showing **{len(data):,}** of {len(df):,} passengers")
 
-st.title("Mostafa Qora3a")
+if data.empty:
+    st.warning("No passengers match these filters. Try widening them in the sidebar.")
+    st.stop()
 
-#st.image("utils/titanic.jpg")
-st.caption("wowowowoawa")
+# ---------------------------------------------------------------- KPI cards
+overall_rate = df["survived"].mean()
+rate = data["survived"].mean()
 
-show_data=st.checkbox("3lia ya3m")
-if show_data:
-   st.dataframe(df,hide_index=True)
+c1, c2, c3, c4 = st.columns(4)
+with c1:
+    with st.container(border=True):
+        st.metric("Passengers", f"{len(data):,}")
+with c2:
+    with st.container(border=True):
+        st.metric("Survival rate", f"{rate:.1%}",
+                  delta=f"{(rate - overall_rate) * 100:+.1f} pts vs all")
+with c3:
+    with st.container(border=True):
+        st.metric("Median age", f"{data['age'].median():.0f}")
+with c4:
+    with st.container(border=True):
+        st.metric("Avg family size", f"{data['family_size'].mean():.1f}")
 
+st.write("")
 
-classes = st.multiselect("Select class", df["class"].unique(),default=df["class"].unique())
-gender=st.radio("Select gender",["male","female"], horizontal=True)
-data=df[(df["class"].isin(classes)) & (df["sex"]==gender)]
+# ---------------------------------------------------------------- charts
+tab1, tab2, tab3 = st.tabs(["📊 Overview", "👶 Survival by age", "🗂️ Data"])
 
+with tab1:
+    col1, col2 = st.columns(2)
+    with col1:
+        st.plotly_chart(rasma(data), width="stretch")
+    with col2:
+        st.plotly_chart(rasma_pie(data, COLORS), width="stretch")
 
-c1,c2=st.columns(2)
-with c1 :
-    fig = px.histogram(data, x="family_size", nbins=11, labels={"family_size": "Family size (incl. the passenger)"},
-                   title="How big were the families on board?")
-    fig.update_layout(bargap=0.1, yaxis_title="Passengers")
-    st.plotly_chart(fig)
+with tab2:
+    st.plotly_chart(rasma_bar(data, ORDERS), width="stretch")
 
-with c2 :
-    outcome = data["survival"].value_counts().reset_index()
+with tab3:
+    st.dataframe(data, hide_index=True, width="stretch")
+    st.download_button("Download filtered data (CSV)", data.to_csv(index=False),
+                       file_name="titanic_filtered.csv", mime="text/csv")
 
-    fig2 = px.pie(outcome, names="survival", values="count", hole=0.5, color="survival",
-             color_discrete_map=COLORS, title="Died vs survived")
-
-    st.plotly_chart(fig2)
+# ---------------------------------------------------------------- leftover tutorial widgets
+with st.expander("Tutorial widgets (demo)"):
+    st.radio("selecta number", [1, 2, 3], horizontal=True)
+    st.checkbox("doos 3lia ya3m")
+    with st.form("search"):
+        name = st.text_input("namecontains", placeholder="e.g defense ministry")
+        classes = st.multiselect("class", [1, 2, 3], default=[1, 2, 3])
+        ages = st.slider("age", 0, 80, (0, 80))
+        submitted = st.form_submit_button("search")
+    if submitted:
+        st.write(f"you searched for {name} in class {classes} and ages {ages}")
